@@ -10,7 +10,7 @@ from ..widgets import show_error
 
 # TODO: Load all inner modules automatically. This is not really easy because we have to support freezing.
 from . import esc_panel
-
+from . import uwb_panel
 
 class PanelDescriptor:
     def __init__(self, module):
@@ -32,5 +32,6 @@ class PanelDescriptor:
 
 
 PANELS = sorted([
-    PanelDescriptor(esc_panel)
+    PanelDescriptor(esc_panel),
+    PanelDescriptor(uwb_panel)
 ], key=lambda x: x.name)

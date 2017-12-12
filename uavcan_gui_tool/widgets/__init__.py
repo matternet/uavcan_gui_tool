@@ -23,6 +23,7 @@ logger = getLogger(__name__)
 
 
 def show_error(title, text, informative_text, parent=None, blocking=False):
+    logger.info("Show Error",informative_text)
     mbox = QMessageBox(parent)
 
     mbox.setWindowTitle(str(title))
