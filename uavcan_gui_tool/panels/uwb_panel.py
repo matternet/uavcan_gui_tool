@@ -73,6 +73,8 @@ class UWBNodeTable(BasicTable):
                           lambda e: uavcan.value_to_constant_name(e.status, 'type'), QHeaderView.Stretch),
         BasicTable.Column('Num_Pkt',
                           lambda e: e.status.pkt_cnt),
+        BasicTable.Column('P_STATE',
+                          lambda e: uavcan.value_to_constant_name(e.status, 'pstate'), QHeaderView.Stretch),
         BasicTable.Column('Progress',
                           lambda e: e.progress)
     ]
@@ -178,8 +180,11 @@ class UWBPanel(QDialog):
         self._table.set_progress(event.transfer.source_node_id, event.message.progress_pct)
         if event.message.progress_pct == 100:
             self._msg_viewer.insertPlainText("ANTENNA DELAY for Node ID %x is %d\n" % (event.message.node_id, event.message.antenna_delay))
-            self._cal_progress_handle[event.transfer.source_node_id].remove()
-            del self._cal_progress_handle[event.transfer.source_node_id]
+            try:
+                self._cal_progress_handle[event.transfer.source_node_id].remove()
+                del self._cal_progress_handle[event.transfer.source_node_id]
+            except:
+                pass
 
     def send_start_cal(self):
         body_id = None
