@@ -9,8 +9,8 @@
 import uavcan
 import time
 from functools import partial
-from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QHeaderView, QWidget, QLabel, QDialog, QAbstractItemView, QSlider, QSpinBox, QDoubleSpinBox, \
-    QPlainTextEdit
+from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QHeaderView, QWidget, QLabel, QInputDialog, QDialog, \
+     QAbstractItemView, QSlider, QSpinBox, QDoubleSpinBox, QPlainTextEdit
 from PyQt5.QtCore import QTimer, Qt, QObject
 from logging import getLogger
 from ..widgets import BasicTable, make_icon_button, get_icon, get_monospace_font
@@ -66,7 +66,7 @@ class UWBNodeTable(BasicTable):
         BasicTable.Column('UWB_NID',
                           lambda e: hex(e.status.node_id)),
         BasicTable.Column('UWB_BID',
-                          lambda e: hex(e.status.body_id)),
+                          lambda e: e.status.body_id),
         BasicTable.Column('UWB_SID',
                           lambda e: "UNALLOCATED" if e.status.data_slot_id == 255 else e.status.data_slot_id),
         BasicTable.Column('TX_Type',
@@ -156,7 +156,8 @@ class UWBPanel(QDialog):
         self._msg_viewer.setFont(get_monospace_font())
         self._msg_viewer.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self._msg_viewer.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self._start_cal = make_icon_button('dot-circle-o', 'Start Antenna Calibration', self, checkable=False, text='Start Ant Cal', on_clicked=self.send_start_cal)
+        self._start_cal = make_icon_button('bullseye', 'Start Antenna Calibration', self, checkable=False, text='Start Ant Cal', on_clicked=self.send_start_cal)
+        self._pair = make_icon_button('retweet', 'Pair', self, checkable=False, text='Pair', on_clicked=self.send_pairing_cmd)
         self._table = UWBNodeTable(self, node, self._monitor)
         self._table.setSelectionMode(QAbstractItemView.SingleSelection)
         self._cal_progress_handle = {}
@@ -164,6 +165,7 @@ class UWBPanel(QDialog):
         layout = QVBoxLayout(self)
         layout.addWidget(self._table)
         layout.addWidget(self._start_cal)
+        layout.addWidget(self._pair)
         layout.addWidget(QLabel('UWB Command Status:', self))
         layout.addWidget(self._msg_viewer)
         self.setLayout(layout)
@@ -201,6 +203,21 @@ class UWBPanel(QDialog):
                     nid, self.start_cal_response_callback, timeout=1.0)
                 self._cal_progress_handle[nid] = self._node.add_handler(uavcan.thirdparty.com.matternet.equipment.uwb.TransceiverCalibrationStatus, self.uwb_cal_status_callback)
 
+    def send_pairing_cmd(self):
+        try:
+            body_id = self._table.selectedBodyID()
+        except ValueError:
+            self._msg_viewer.insertPlainText("Select Node for which you want to start calibration, the cal will be run over the full body\n")
+            return
+        remote_body_name, ok = QInputDialog.getText(self, 'Body Name', 'Enter Body Name:')
+        if not ok or len(remote_body_name) < 12:
+            return
+        if body_id is not None:
+            msg = uavcan.thirdparty.com.matternet.equipment.uwb.PairingCommand()
+            msg.body_id = body_id
+            msg.remote_body_id = fnv1a(remote_body_name)
+            self._node.broadcast(msg)
+
     def __del__(self):
         global _singleton
         for nid, handle in self._cal_progress_handle.items():
@@ -227,5 +244,14 @@ def spawn(parent, node):
 
     return _singleton
 
+def fnv1a(string):
+    FNV_1_PRIME_64 = 1099511628211
+    hash = 14695981039346656037
+    uint64_max = 2 ** 64
+    for c in string:
+        hash ^= ord(c)
+        hash = (hash * FNV_1_PRIME_64) % uint64_max
+    print(hash)
+    return hash
 
 get_icon = partial(get_icon, 'asterisk')
