@@ -196,10 +196,13 @@ class UWBPanel(QDialog):
         except ValueError:
             self._msg_viewer.insertPlainText("Select Node for which you want to start calibration, the cal will be run over the full body\n")
             return
+        _golden_trx_node_id, ok = QInputDialog.getText(self, 'Body Name', 'Enter Body Name:')
+        if not ok or not _golden_trx_node_id.isdigit():
+            return
         if body_id is not None:
             nodes_on_body = {e.transfer.source_node_id: e for e in self._monitor.find_all(lambda x: x.message.body_id == body_id)}
             for nid in nodes_on_body:
-                self._node.request(uavcan.thirdparty.com.matternet.equipment.uwb.BeginCalibrationCommand.Request(clock_trim_master_nid = 0x0), \
+                self._node.request(uavcan.thirdparty.com.matternet.equipment.uwb.BeginCalibrationCommand.Request(clock_trim_master_nid = 0x0, golden_trx_node_id = int(_golden_trx_node_id)), \
                     nid, self.start_cal_response_callback, timeout=1.0)
                 self._cal_progress_handle[nid] = self._node.add_handler(uavcan.thirdparty.com.matternet.equipment.uwb.TransceiverCalibrationStatus, self.uwb_cal_status_callback)
 
