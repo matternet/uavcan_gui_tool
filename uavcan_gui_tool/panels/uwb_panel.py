@@ -157,7 +157,8 @@ class UWBPanel(QDialog):
         self._msg_viewer.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self._msg_viewer.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self._start_cal = make_icon_button('bullseye', 'Start Antenna Calibration', self, checkable=False, text='Start Ant Cal', on_clicked=self.send_start_cal)
-        self._pair = make_icon_button('retweet', 'Pair', self, checkable=False, text='Pair', on_clicked=self.send_pairing_cmd)
+        self._pair = make_icon_button('retweet', 'Start Pair', self, checkable=False, text='Pair', on_clicked=self.start_pairing)
+        self._unpair = make_icon_button('retweet', 'Stop Pair', self, checkable=False, text='Unpair', on_clicked=self.stop_pairing)
         self._table = UWBNodeTable(self, node, self._monitor)
         self._table.setSelectionMode(QAbstractItemView.SingleSelection)
         self._cal_progress_handle = {}
@@ -166,9 +167,17 @@ class UWBPanel(QDialog):
         layout.addWidget(self._table)
         layout.addWidget(self._start_cal)
         layout.addWidget(self._pair)
+        layout.addWidget(self._unpair)
         layout.addWidget(QLabel('UWB Command Status:', self))
         layout.addWidget(self._msg_viewer)
         self.setLayout(layout)
+
+        self.pair = False
+        self.pairing_cmd = None
+        self._pair_bcast_timer = QTimer(self)
+        self._pair_bcast_timer.start(500)
+        self._pair_bcast_timer.timeout.connect(self._send_pairing_cmd)
+
 
     def start_cal_response_callback(self, event):
         if event is None:
@@ -206,20 +215,30 @@ class UWBPanel(QDialog):
                     nid, self.start_cal_response_callback, timeout=1.0)
                 self._cal_progress_handle[nid] = self._node.add_handler(uavcan.thirdparty.com.matternet.equipment.uwb.TransceiverCalibrationStatus, self.uwb_cal_status_callback)
 
-    def send_pairing_cmd(self):
+    def start_pairing(self):
         try:
             body_id = self._table.selectedBodyID()
         except ValueError:
             self._msg_viewer.insertPlainText("Select Node for which you want to start calibration, the cal will be run over the full body\n")
             return
         remote_body_name, ok = QInputDialog.getText(self, 'Body Name', 'Enter Body Name:')
+        self._msg_viewer.insertPlainText("Trying to Pair with %s\n" % remote_body_name)
         if not ok or len(remote_body_name) < 12:
+            self._msg_viewer.insertPlainText("Failed to Pair %d %d\n" % (ok, len(remote_body_name)))
             return
         if body_id is not None:
             msg = uavcan.thirdparty.com.matternet.equipment.uwb.PairingCommand()
             msg.body_id = body_id
             msg.remote_body_id = fnv1a(remote_body_name)
-            self._node.broadcast(msg)
+            self.pairing_cmd = msg
+            self.pair = True
+
+    def stop_pairing(self):
+        self.pair = False
+    
+    def _send_pairing_cmd(self):
+        if self.pair and self.pairing_cmd is not None:
+            self._node.broadcast(self.pairing_cmd)
 
     def __del__(self):
         global _singleton
