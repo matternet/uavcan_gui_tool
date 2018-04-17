@@ -12,9 +12,11 @@ from functools import partial
 from PyQt5.QtWidgets import QVBoxLayout, QHBoxLayout, QHeaderView, QWidget, QLabel, QInputDialog, QDialog, \
      QAbstractItemView, QSlider, QSpinBox, QDoubleSpinBox, QPlainTextEdit
 from PyQt5.QtCore import QTimer, Qt, QObject
+from PyQt5.QtGui import QColor
 from logging import getLogger
 from ..widgets import BasicTable, make_icon_button, get_icon, get_monospace_font
-
+import random
+import colorsys
 __all__ = 'PANEL_NAME', 'spawn', 'get_icon'
 
 PANEL_NAME = 'UWB Panel'
@@ -63,27 +65,44 @@ class UWBNodeTable(BasicTable):
     COLUMNS = [
         BasicTable.Column('NID',
                           lambda e: e.node_id),
-        BasicTable.Column('UWB_NID',
-                          lambda e: hex(e.status.node_id)),
         BasicTable.Column('UWB_BID',
-                          lambda e: e.status.body_id),
+                          lambda e: (e.status.body_id, e.color)),
         BasicTable.Column('UWB_SID',
-                          lambda e: "UNALLOCATED" if e.status.data_slot_id == 255 else e.status.data_slot_id),
-        BasicTable.Column('TX_Type',
-                          lambda e: uavcan.value_to_constant_name(e.status, 'type'), QHeaderView.Stretch),
-        BasicTable.Column('Num_Pkt',
-                          lambda e: e.status.pkt_cnt),
+                          lambda e: e.status.data_slot_id),
+        BasicTable.Column('Start_Rx',
+                          lambda e: e.status.start_rx_rate),
+        BasicTable.Column('Start_Tx',
+                          lambda e: e.status.start_tx_rate),
+        BasicTable.Column('Follow_Rx',
+                          lambda e: e.status.follow_rx_rate),
+        BasicTable.Column('Follow_Tx',
+                          lambda e: e.status.follow_tx_rate),
+        BasicTable.Column('DACK_Rx',
+                          lambda e: e.status.dack_rx_rate),
+        BasicTable.Column('Failed_Tx',
+                          lambda e: e.status.tx_failed),
+        BasicTable.Column('Backoff',
+                          lambda e: e.status.backoff),
+        BasicTable.Column('Last_ErrCode',
+                          lambda e: e.status.last_errcode),
         BasicTable.Column('P_STATE',
                           lambda e: uavcan.value_to_constant_name(e.status, 'pstate'), QHeaderView.Stretch),
-        BasicTable.Column('Progress',
-                          lambda e: e.progress)
+        BasicTable.Column('P_REASON',
+                          lambda e: uavcan.value_to_constant_name(e.status, 'preason'), QHeaderView.Stretch),
     ]
     class Row_value:
         """docstring for Row_value"""
-        def __init__(self, status, progress):
+        def __init__(self, status, progress, color):
             self.node_id = status.transfer.source_node_id
             self.status = status.message 
             self.progress = progress
+            self.color = color
+
+    def body_id_to_color(self, body_id):
+        if body_id not in self.row_color:
+            h,s,l = random.random(), 0.5 + random.random()/2.0, 0.4 + random.random()/5.0
+            self.row_color[body_id] = QColor.fromHslF(h,s,l)
+        return self.row_color[body_id]
 
     def __init__(self, parent, node, monitor):
         super(UWBNodeTable, self).__init__(parent, self.COLUMNS, font=get_monospace_font())
@@ -92,20 +111,20 @@ class UWBNodeTable(BasicTable):
         self._timer.setSingleShot(False)
         self._timer.timeout.connect(self._update)
         self._timer.start(500)
-        self.setMinimumWidth(700) 
+        self.setMinimumWidth(1000) 
         self.progress = {}
+        self.row_color = {}
 
     def selectedBodyID(self):
         if len(self.selectionModel().selectedRows()) == 0:
             return None
         x = self.selectionModel().selectedRows()[0]
-        return int(self.item(x.row(), 2).text(), 0)
+        return int(self.item(x.row(), 1).text(), 0)
 
     def _update(self):
         known_nodes = {e.transfer.source_node_id: e for e in self._monitor.find_all(lambda _: True)}
         displayed_nodes = set()
         rows_to_remove = []
-
         # Updating existing entries
         for row in range(self.rowCount()):
             nid = int(self.item(row, 0).text(), 0)
@@ -114,7 +133,7 @@ class UWBNodeTable(BasicTable):
                 rows_to_remove.append(row)
                 self.progress.pop(nid, None)
             else:
-                row_val = UWBNodeTable.Row_value(known_nodes[nid], self.progress[nid])
+                row_val = UWBNodeTable.Row_value(known_nodes[nid], self.progress[nid], self.body_id_to_color(known_nodes[nid].message.body_id))
                 self.set_row(row, row_val)
 
         # Removing nonexistent entries
@@ -131,10 +150,10 @@ class UWBNodeTable(BasicTable):
             return self.rowCount()
                 
         for nid in set(known_nodes.keys()) - displayed_nodes:
-            row = find_insertion_pos_for_node_id(known_nodes[nid].message.data_slot_id + known_nodes[nid].message.body_id)
+            row = find_insertion_pos_for_node_id(known_nodes[nid].message.body_id+known_nodes[nid].message.data_slot_id)
             self.insertRow(row)
             self.progress[nid] = 0
-            row_val = UWBNodeTable.Row_value(known_nodes[nid], self.progress[nid])
+            row_val = UWBNodeTable.Row_value(known_nodes[nid], self.progress[nid], self.body_id_to_color(known_nodes[nid].message.body_id))
             self.set_row(row, row_val)
 
     def set_progress(self, nid, progress):
@@ -222,9 +241,8 @@ class UWBPanel(QDialog):
             self._msg_viewer.insertPlainText("Select Node for which you want to start calibration, the cal will be run over the full body\n")
             return
         remote_body_name, ok = QInputDialog.getText(self, 'Body Name', 'Enter Body Name:')
-        self._msg_viewer.insertPlainText("Trying to Pair with %s\n" % remote_body_name)
-        if not ok or len(remote_body_name) < 12:
-            self._msg_viewer.insertPlainText("Failed to Pair %d %d\n" % (ok, len(remote_body_name)))
+        self._msg_viewer.setPlainText("Trying to Pair with %s\n" % remote_body_name)
+        if not ok:
             return
         if body_id is not None:
             msg = uavcan.thirdparty.com.matternet.equipment.uwb.PairingCommand()
