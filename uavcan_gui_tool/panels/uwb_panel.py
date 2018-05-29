@@ -223,7 +223,7 @@ class UWBPanel(QDialog):
             return
         remote_body_name, ok = QInputDialog.getText(self, 'Body Name', 'Enter Body Name:')
         self._msg_viewer.insertPlainText("Trying to Pair with %s\n" % remote_body_name)
-        if not ok or len(remote_body_name) < 12:
+        if not ok:
             self._msg_viewer.insertPlainText("Failed to Pair %d %d\n" % (ok, len(remote_body_name)))
             return
         if body_id is not None:
