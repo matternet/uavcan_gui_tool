@@ -247,7 +247,7 @@ class UWBPanel(QDialog):
         if body_id is not None:
             msg = uavcan.thirdparty.com.matternet.equipment.uwb.PairingCommand()
             msg.body_id = body_id
-            msg.remote_body_id = fnv1a(remote_body_name)
+            msg.remote_body_id = compute_body_id_from_body_name(remote_body_name)
             self.pairing_cmd = msg
             self.pair = True
 
@@ -284,14 +284,15 @@ def spawn(parent, node):
 
     return _singleton
 
-def fnv1a(string):
+def compute_body_id_from_body_name(string):
     FNV_1_PRIME_64 = 1099511628211
-    hash = 14695981039346656037
+    body_id = 14695981039346656037
     uint64_max = 2 ** 64
     for c in string:
-        hash ^= ord(c)
-        hash = (hash * FNV_1_PRIME_64) % uint64_max
-    print(hash)
-    return hash
+        body_id ^= ord(c)
+        body_id = (body_id * FNV_1_PRIME_64) % uint64_max
+    body_id = ((body_id>>56) ^ (body_id & ((1<<56)-1)))<<8
+    print(body_id)
+    return body_id
 
 get_icon = partial(get_icon, 'asterisk')
