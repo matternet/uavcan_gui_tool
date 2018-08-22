@@ -97,12 +97,13 @@ as these ports are supported much better at the moment.
 ### Homebrew option
 
 * Install the Homebrew package manager for OSX.
+* make sure to install python 3.6.5; 3.7 DOES NOT WORK!
 * Run the following commands:
 
 ```bash
-brew install python3
+brew install https://raw.githubusercontent.com/Homebrew/homebrew-core/f2a764ef944b1080be64bd88dca9a1d80130c558/Formula/python.rb
 pip3 install PyQt5
-pip3 install git+https://github.com/UAVCAN/gui_tool@master
+pip3 install git+https://github.com/matternet/uavcan_gui_tool
 uavcan_gui_tool
 ```
 
