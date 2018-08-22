@@ -98,6 +98,7 @@ as these ports are supported much better at the moment.
 
 * Install the Homebrew package manager for OSX.
 * make sure to install python 3.6.5; 3.7 DOES NOT WORK!
+    * If python 3 version is currently 3.7 use 'brew uninstall python' to remove it
 * Run the following commands:
 
 ```bash
