@@ -1,3 +1,7 @@
+NOTE:  This repo has been decprecated.  UAVCAN GUI Tool has been superceded with [matternet/dronecan_gui_tool]:https://github.com/matternet/dronecan_gui_tool
+
+
+
 UAVCAN GUI Tool
 ===============
 
